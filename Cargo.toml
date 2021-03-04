@@ -3,6 +3,11 @@ name = "cargo-cpl"
 version = "0.0.0"
 authors = ["Ryo Yamashita <qryxip@gmail.com>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "A Cargo subcommand to manage your library for competitive programming."
+repository = "https://github.com/qryxip/cargo-cpl"
+keywords = ["competitive", "cli"]
+categories = ["command-line-utilities", "development-tools::cargo-plugins"]
 publish = false
 
 [dependencies]
