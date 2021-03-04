@@ -13,6 +13,7 @@ publish = false
 [dependencies]
 anyhow = "1.0.38"
 atty = "0.2.14"
+camino = "1.0.2"
 cargo_metadata = "0.13.1"
 dirs-next = "2.0.0"
 dunce = "1.0.1"

@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context as _};
+use camino::Utf8Path;
 use cargo_metadata as cm;
 use ignore::Walk;
 use indexmap::{indexmap, IndexMap};
@@ -23,7 +24,7 @@ pub(crate) fn list_metadata(
         let metadata = Rc::new(cargo_metadata(&manifest_path)?);
         for ws_member in &metadata.workspace_members {
             metadata_set.insert(ws_member.clone(), metadata.clone());
-            visited.insert(metadata[ws_member].manifest_path.clone());
+            visited.insert(PathBuf::from(&metadata[ws_member].manifest_path));
         }
     }
     return Ok(metadata_set);
@@ -62,8 +63,7 @@ fn cargo_metadata(manifest_path: &Path) -> anyhow::Result<cm::Metadata> {
 
 pub(crate) trait PackageExt {
     fn metadata(&self) -> serde_json::Result<PackageMetadata>;
-    fn manifest_dir(&self) -> &Path;
-    fn manifest_dir_utf8(&self) -> &str;
+    fn manifest_dir(&self) -> &Utf8Path;
     fn lib_target(&self) -> Option<&cm::Target>;
     fn proc_macro_target(&self) -> Option<&cm::Target>;
     fn bin_target(&self, name: &str) -> anyhow::Result<&cm::Target>;
@@ -83,14 +83,10 @@ impl PackageExt for cm::Package {
         }
     }
 
-    fn manifest_dir(&self) -> &Path {
+    fn manifest_dir(&self) -> &Utf8Path {
         self.manifest_path
             .parent()
             .expect("should end with `Cargo.toml`")
-    }
-
-    fn manifest_dir_utf8(&self) -> &str {
-        self.manifest_dir().to_str().expect("should be valid UTF-8")
     }
 
     fn lib_target(&self) -> Option<&cm::Target> {

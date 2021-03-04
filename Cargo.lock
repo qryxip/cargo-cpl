@@ -98,6 +98,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "atty",
+ "camino",
  "cargo_metadata",
  "dirs-next",
  "dunce",

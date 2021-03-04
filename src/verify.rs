@@ -4,6 +4,7 @@ use crate::{
     workspace::{self, PackageExt as _, TargetExt as _},
 };
 use anyhow::{anyhow, Context as _};
+use camino::Utf8Path;
 use cargo_metadata as cm;
 use git2::Repository;
 use indoc::indoc;
@@ -31,18 +32,13 @@ pub fn verify(
     let (gh_username, gh_repo_name, gh_branch_name) = github::remote(repo)?;
     let rev = github::rev(repo)?;
 
-    let gh_blob_url = |rel_filepath: &Path| -> anyhow::Result<Url> {
-        let path_segments = rel_filepath
-            .iter()
-            .map(|p| p.to_str())
-            .collect::<Option<Vec<_>>>()
-            .with_context(|| format!("not a valid UTF-8 path: {:?}", rel_filepath))?;
+    let gh_blob_url = |rel_filepath: &Utf8Path| -> anyhow::Result<Url> {
         let url = format!(
             "https://github.com/{}/{}/blob/{}/{}",
             gh_username,
             gh_repo_name,
             rev,
-            path_segments.iter().format("/"),
+            rel_filepath.iter().format("/"),
         );
         url.parse()
             .with_context(|| format!("invalid URL: {:?}", url))
@@ -118,16 +114,24 @@ pub fn verify(
             let bin_target = ws_member.bin_target(bin_name)?;
 
             let verification = {
-                let relative_src_path = &dunce::canonicalize(&bin_target.src_path)
+                let relative_src_path = dunce::canonicalize(&bin_target.src_path)
                     .ok()
                     .and_then(|p| p.strip_prefix(repo_workdir).ok().map(ToOwned::to_owned))
                     .with_context(|| {
                         format!(
                             "could not get the relative path of `{}`",
-                            bin_target.src_path.display(),
+                            bin_target.src_path,
+                        )
+                    })?
+                    .into_os_string()
+                    .into_string()
+                    .map_err(|_| {
+                        anyhow!(
+                            "`{}` was canonicalized to non UTF-8 string",
+                            bin_target.src_path,
                         )
                     })?;
-                (problem_url, gh_blob_url(relative_src_path)?)
+                (problem_url, gh_blob_url(Utf8Path::new(&relative_src_path))?)
             };
 
             let cargo_udeps_output = &process_builder::process("rustup")
@@ -226,10 +230,7 @@ pub fn verify(
                     .manifest_path
                     .strip_prefix(repo_workdir)
                     .map_err(|_| {
-                        anyhow!(
-                            "`{}` is outside of the repository",
-                            package.manifest_path.display()
-                        )
+                        anyhow!("`{}` is outside of the repository", package.manifest_path)
                     })?;
                 let manifest_path_url = gh_blob_url(relative_manifest_path)?;
                 Ok(PackageAnalysis {
@@ -288,7 +289,7 @@ pub fn verify(
 struct PackageAnalysis<'a> {
     package: &'a cm::Package,
     krate: &'a cm::Target,
-    relative_manifest_path: &'a Path,
+    relative_manifest_path: &'a Utf8Path,
     manifest_path_url: Url,
     verifications: &'a BTreeSet<(&'a Url, Url)>,
 }
@@ -317,7 +318,7 @@ fn open_doc(
     for PackageAnalysis { package, .. } in analysis {
         dependencies[&package.name] = {
             let mut tbl = toml_edit::InlineTable::default();
-            tbl.get_or_insert("path", package.manifest_dir_utf8());
+            tbl.get_or_insert("path", package.manifest_dir().as_str());
             toml_edit::value(tbl)
         };
     }
@@ -468,7 +469,7 @@ fn modify_index_html(html: &str, analysis: &PackageAnalysis<'_>) -> anyhow::Resu
                 n => format!("{} This library is verified with {} solutions", HEAVY_CHECK_MARK, n),
             },
             manifest_path_url,
-            v_htmlescape::escape(&relative_manifest_path.to_string_lossy()).to_string(),
+            v_htmlescape::escape(relative_manifest_path.as_ref()).to_string(),
             if let Some(license) = &package.license {
                 format!("<code>{}</code>", v_htmlescape::escape(license))
             } else {
@@ -539,13 +540,13 @@ struct TableOfContents {
 }
 
 impl TableOfContents {
-    fn insert(&mut self, relative_manifest_path: &Path, crate_name: &str, is_verified: bool) {
+    fn insert(&mut self, relative_manifest_path: &Utf8Path, crate_name: &str, is_verified: bool) {
         let category = &mut relative_manifest_path
             .parent()
             .unwrap()
             .iter()
             .take(relative_manifest_path.iter().count().saturating_sub(2))
-            .map(|s| s.to_string_lossy().into_owned());
+            .map(ToOwned::to_owned);
 
         let mut entry = self;
         for category in category {
