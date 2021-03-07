@@ -331,11 +331,11 @@ fn prepare_doc(
         lib_rs += line;
         lib_rs += "\n";
     }
-    lib_rs += "\n//! # As `[dependencies]`\n\n```toml\n";
+    lib_rs += "\n//! # As `[dependencies]`\n//!\n//! ```toml\n";
     for PackageAnalysis { package, .. } in analysis {
-        lib_rs += &format!("{} = {{ git = \"{}\" }}\n", package.name, git_url);
+        lib_rs += &format!("//! {} = {{ git = \"{}\" }}\n", package.name, git_url);
     }
-    lib_rs += "```\n";
+    lib_rs += "//! ```\n";
 
     let ws = &dirs_next::cache_dir()
         .with_context(|| "could not find the cache directory")?
