@@ -214,7 +214,7 @@ pub fn verify(
         }
     }
 
-    open_doc(
+    prepare_doc(
         open,
         &verifications
             .iter()
@@ -256,7 +256,11 @@ struct PackageAnalysis<'a> {
     verifications: &'a BTreeSet<(&'a Url, Url)>,
 }
 
-fn open_doc(open: bool, analysis: &[PackageAnalysis<'_>], shell: &mut Shell) -> anyhow::Result<()> {
+fn prepare_doc(
+    open: bool,
+    analysis: &[PackageAnalysis<'_>],
+    shell: &mut Shell,
+) -> anyhow::Result<()> {
     let manifest = &mut indoc! {r#"
         [package]
         name = "__cargo_cpl_doc"
