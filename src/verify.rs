@@ -242,44 +242,6 @@ pub fn verify(
                 })
             })
             .collect::<anyhow::Result<Vec<_>>>()?,
-        &metadata_list
-            .values()
-            .flat_map(|metadata| {
-                let resolve = metadata.resolve.as_ref().unwrap();
-                let graph = resolve
-                    .nodes
-                    .iter()
-                    .map(|cm::Node { id, deps, .. }| (id, deps))
-                    .collect::<HashMap<_, _>>();
-                let mut deps = hashset!();
-                let stack = &mut metadata
-                    .workspace_members
-                    .iter()
-                    .filter(|id| {
-                        let package = &metadata[id];
-                        package.has_lib_target() || package.has_proc_macro_target()
-                    })
-                    .collect::<Vec<_>>();
-                while let Some(package_id) = stack.pop() {
-                    if deps.insert(package_id) {
-                        for cm::NodeDep { pkg, dep_kinds, .. } in graph[package_id] {
-                            if dep_kinds
-                                .iter()
-                                .any(|d| d.kind == cm::DependencyKind::Normal)
-                            {
-                                stack.push(pkg);
-                            }
-                        }
-                    }
-                }
-                deps.into_iter()
-                    .filter(|id| id.repr.contains(" (git+"))
-                    .map(move |id| {
-                        let package = &metadata[id];
-                        format!("{}:{}", package.name, package.version)
-                    })
-            })
-            .collect(),
         shell,
     )?;
 
@@ -294,12 +256,7 @@ struct PackageAnalysis<'a> {
     verifications: &'a BTreeSet<(&'a Url, Url)>,
 }
 
-fn open_doc(
-    open: bool,
-    analysis: &[PackageAnalysis<'_>],
-    deps_from_git: &BTreeSet<String>,
-    shell: &mut Shell,
-) -> anyhow::Result<()> {
+fn open_doc(open: bool, analysis: &[PackageAnalysis<'_>], shell: &mut Shell) -> anyhow::Result<()> {
     let manifest = &mut indoc! {r#"
         [package]
         name = "__cargo_cpl_doc"
@@ -376,20 +333,10 @@ fn open_doc(
             .exec_with_status(shell)?;
     }
 
-    let cargo_doc_p_options = &iter::once("__cargo_cpl_doc:0.0.0")
-        .chain(
-            analysis
-                .iter()
-                .map(|PackageAnalysis { package, .. }| &*package.name),
-        )
-        .chain(deps_from_git.iter().map(Deref::deref))
-        .flat_map(|s| vec!["-p", s])
-        .collect::<Vec<_>>();
     let run_cargo_doc = |open: bool, shell: &mut Shell| -> _ {
         process_builder::process(cargo_exe)
             .arg("doc")
             .args(if open { &["--open"] } else { &[] })
-            .args(cargo_doc_p_options)
             .cwd(ws)
             .exec_with_status(shell)
     };
