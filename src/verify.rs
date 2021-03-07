@@ -10,12 +10,10 @@ use git2::Repository;
 use indoc::indoc;
 use itertools::Itertools as _;
 use kuchiki::{traits::TendrilSink as _, ElementData, NodeDataRef, NodeRef};
-use maplit::{btreemap, btreeset, hashset};
+use maplit::{btreemap, btreeset};
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    iter,
-    ops::Deref,
     path::{Path, PathBuf},
 };
 use url::Url;
@@ -233,11 +231,13 @@ pub fn verify(
                         anyhow!("`{}` is outside of the repository", package.manifest_path)
                     })?;
                 let manifest_path_url = gh_blob_url(relative_manifest_path)?;
+                let code_sizes = krate.is_lib().then(|| CodeSizes::new(krate));
                 Ok(PackageAnalysis {
                     package,
                     krate,
                     relative_manifest_path,
                     manifest_path_url,
+                    code_sizes,
                     verifications,
                 })
             })
@@ -253,7 +253,25 @@ struct PackageAnalysis<'a> {
     krate: &'a cm::Target,
     relative_manifest_path: &'a Utf8Path,
     manifest_path_url: Url,
+    code_sizes: Option<CodeSizes>,
     verifications: &'a BTreeSet<(&'a Url, Url)>,
+}
+
+struct CodeSizes {
+    unmodified: Result<usize, String>,
+}
+
+impl CodeSizes {
+    fn new(krate: &cm::Target) -> Self {
+        match crate::rust::expand_mods(&krate.src_path) {
+            Ok(code) => Self {
+                unmodified: Ok(code.len()),
+            },
+            Err(err) => Self {
+                unmodified: Err(err),
+            },
+        }
+    }
 }
 
 fn prepare_doc(
@@ -367,9 +385,10 @@ fn prepare_doc(
 fn modify_index_html(html: &str, analysis: &PackageAnalysis<'_>) -> anyhow::Result<String> {
     let PackageAnalysis {
         package,
-        krate,
+        krate: _,
         relative_manifest_path,
         manifest_path_url,
+        code_sizes,
         verifications,
     } = analysis;
 
@@ -408,6 +427,7 @@ fn modify_index_html(html: &str, analysis: &PackageAnalysis<'_>) -> anyhow::Resu
                         <li>Manifest: <a href="{}"><code>{}</code></a></li>
                         <li>License: {}</li>
                       </ul>
+                      {}
                       <h1 id="verified-with" class="section-header"><a href="#verified-with">Verified with</a></h1>
                       {}
                     </div>
@@ -426,6 +446,26 @@ fn modify_index_html(html: &str, analysis: &PackageAnalysis<'_>) -> anyhow::Resu
             } else {
                 "<strong>missing license</strong>".to_owned()
             },
+            code_sizes
+                .as_ref()
+                .map(|CodeSizes { unmodified }| {
+                    format!(
+                        indoc! {r##"
+                            <h1 id="code-size" class="section-header"><a href="#code-size">Code size</a></h1>
+                            <ul>
+                              <li>unmodified: {}</li>
+                            </ul>
+                        "##},
+                        match unmodified {
+                            Ok(size) => {
+                                let (div, rem) = (size / 1024, size % 1024);
+                                format!("{}.{} KiB + &quest; KiB", div, 10 * rem / 1024)
+                            }
+                            Err(err) => format!("<code>{}</code>", v_htmlescape::escape(err)),
+                        },
+                    )
+                })
+                .unwrap_or_default(),
             if verifications.is_empty() {
                 "<strong>This library is not verified.</strong>".to_owned()
             } else {
