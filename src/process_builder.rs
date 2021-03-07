@@ -78,9 +78,8 @@ impl ProcessBuilder<Present> {
         self.exec()
     }
 
-    pub(crate) fn status_with_status(&self, shell: &mut Shell) -> anyhow::Result<ExitStatus> {
-        shell.status("Running", self)?;
-        let Output { status, .. } = self.output(false, Stdio::inherit(), Stdio::inherit())?;
+    pub(crate) fn status_silent(&self) -> anyhow::Result<ExitStatus> {
+        let Output { status, .. } = self.output(false, Stdio::null(), Stdio::null())?;
         Ok(status)
     }
 

@@ -216,6 +216,7 @@ pub fn verify(
 
     prepare_doc(
         open,
+        nightly_toolchain,
         gh_url,
         &verifications
             .iter()
@@ -279,6 +280,7 @@ impl CodeSizes {
 
 fn prepare_doc(
     open: bool,
+    nightly_toolchain: &str,
     git_url: &Url,
     analysis: &[PackageAnalysis<'_>],
     shell: &mut Shell,
@@ -342,31 +344,29 @@ fn prepare_doc(
         .join("cargo-cpl")
         .join("workspace");
 
+    xshell::mkdir_p(ws.join(".cargo"))?;
     xshell::mkdir_p(ws.join("src"))?;
     xshell::rm_rf(ws.join("target").join("doc"))?;
 
+    xshell::write_file(ws.join(".cargo").join("config.toml"), CONFIG_TOML)?;
     xshell::write_file(ws.join("Cargo.toml"), manifest.to_string())?;
     xshell::write_file(ws.join("src").join("lib.rs"), lib_rs)?;
 
-    let cargo_exe = &process_builder::process("rustup")
-        .args(&["which", "cargo"])
+    if process_builder::process("rustup")
+        .args(&["which", "cargo-fmt", "--toolchain", nightly_toolchain])
         .cwd(ws)
-        .read(true)?;
-
-    if Path::new(cargo_exe)
-        .with_file_name("rustfmt")
-        .with_extension(std::env::consts::EXE_EXTENSION)
-        .exists()
+        .status_silent()?
+        .success()
     {
-        process_builder::process(cargo_exe)
-            .arg("fmt")
+        process_builder::process("rustup")
+            .args(&["run", nightly_toolchain, "cargo", "fmt"])
             .cwd(ws)
             .exec_with_status(shell)?;
     }
 
     let run_cargo_doc = |open: bool, shell: &mut Shell| -> _ {
-        process_builder::process(cargo_exe)
-            .arg("doc")
+        process_builder::process("rustup")
+            .args(&["run", nightly_toolchain, "cargo", "doc", "-Zrustdoc-map"])
             .args(if open { &["--open"] } else { &[] })
             .cwd(ws)
             .exec_with_status(shell)
@@ -388,7 +388,12 @@ fn prepare_doc(
     if open {
         run_cargo_doc(true, shell)?;
     }
-    Ok(())
+    return Ok(());
+
+    static CONFIG_TOML: &str = indoc! {r#"
+        [doc.extern-map.registries]
+        crates-io = "https://docs.rs/"
+    "#};
 }
 
 fn modify_index_html(html: &str, analysis: &PackageAnalysis<'_>) -> anyhow::Result<String> {
