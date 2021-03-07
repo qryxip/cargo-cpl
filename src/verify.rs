@@ -30,16 +30,18 @@ pub fn verify(
     let (gh_username, gh_repo_name, gh_branch_name) = github::remote(repo)?;
     let rev = github::rev(repo)?;
 
-    let gh_blob_url = |rel_filepath: &Utf8Path| -> anyhow::Result<Url> {
-        let url = format!(
-            "https://github.com/{}/{}/blob/{}/{}",
-            gh_username,
-            gh_repo_name,
-            rev,
-            rel_filepath.iter().format("/"),
-        );
-        url.parse()
-            .with_context(|| format!("invalid URL: {:?}", url))
+    let gh_url = format!("https://github.com/{}/{}", gh_username, gh_repo_name);
+    let gh_url = &gh_url
+        .parse::<Url>()
+        .with_context(|| format!("invalid URL: {}", gh_url))?;
+
+    let gh_blob_url = |rel_filepath: &Utf8Path| -> Url {
+        let mut url = gh_url.clone();
+        let mut path_segments = url.path_segments_mut().expect("this is `https://`");
+        path_segments.push(&rev.to_string());
+        path_segments.extend(rel_filepath);
+        drop(path_segments);
+        url
     };
 
     let metadata_list = workspace::list_metadata(repo_workdir)?;
@@ -129,7 +131,7 @@ pub fn verify(
                             bin_target.src_path,
                         )
                     })?;
-                (problem_url, gh_blob_url(Utf8Path::new(&relative_src_path))?)
+                (problem_url, gh_blob_url(Utf8Path::new(&relative_src_path)))
             };
 
             let cargo_udeps_output = &process_builder::process("rustup")
@@ -214,6 +216,7 @@ pub fn verify(
 
     prepare_doc(
         open,
+        gh_url,
         &verifications
             .iter()
             .flat_map(|(package_id, verifications)| {
@@ -230,7 +233,7 @@ pub fn verify(
                     .map_err(|_| {
                         anyhow!("`{}` is outside of the repository", package.manifest_path)
                     })?;
-                let manifest_path_url = gh_blob_url(relative_manifest_path)?;
+                let manifest_path_url = gh_blob_url(relative_manifest_path);
                 let code_sizes = krate.is_lib().then(|| CodeSizes::new(krate));
                 Ok(PackageAnalysis {
                     package,
@@ -276,6 +279,7 @@ impl CodeSizes {
 
 fn prepare_doc(
     open: bool,
+    git_url: &Url,
     analysis: &[PackageAnalysis<'_>],
     shell: &mut Shell,
 ) -> anyhow::Result<()> {
@@ -317,7 +321,7 @@ fn prepare_doc(
         );
     }
 
-    let mut lib_rs = "//! The table of contents.\n".to_owned();
+    let mut lib_rs = "//! # Table of contents\n".to_owned();
     lib_rs += "//!\n";
     for line in toc.to_md().lines() {
         lib_rs += "//!";
@@ -327,6 +331,11 @@ fn prepare_doc(
         lib_rs += line;
         lib_rs += "\n";
     }
+    lib_rs += "\n//! # As `[dependencies]`\n\n```toml\n";
+    for PackageAnalysis { package, .. } in analysis {
+        lib_rs += &format!("{} = {{ git = \"{}\" }}", package.name, git_url);
+    }
+    lib_rs += "```\n";
 
     let ws = &dirs_next::cache_dir()
         .with_context(|| "could not find the cache directory")?
