@@ -333,7 +333,7 @@ fn prepare_doc(
     }
     lib_rs += "\n//! # As `[dependencies]`\n\n```toml\n";
     for PackageAnalysis { package, .. } in analysis {
-        lib_rs += &format!("{} = {{ git = \"{}\" }}", package.name, git_url);
+        lib_rs += &format!("{} = {{ git = \"{}\" }}\n", package.name, git_url);
     }
     lib_rs += "```\n";
 
