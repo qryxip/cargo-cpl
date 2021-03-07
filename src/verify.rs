@@ -572,7 +572,7 @@ impl TableOfContents {
             }
             for (category, children) in &this.children {
                 *ret += &" ".repeat(4 * depth);
-                *ret += "- ";
+                *ret += "- 📁 ";
                 *ret += category;
                 *ret += "\n";
                 to_md(children, depth + 1, ret);
