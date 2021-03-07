@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context as _};
 use camino::Utf8Path;
 use cargo_metadata as cm;
 use git2::Repository;
+use ignore::Walk;
 use indoc::indoc;
 use itertools::Itertools as _;
 use kuchiki::{traits::TendrilSink as _, ElementData, NodeDataRef, NodeRef};
@@ -217,6 +218,7 @@ pub fn verify(
     prepare_doc(
         open,
         nightly_toolchain,
+        repo_workdir,
         gh_url,
         &verifications
             .iter()
@@ -281,11 +283,15 @@ impl CodeSizes {
 fn prepare_doc(
     open: bool,
     nightly_toolchain: &str,
+    repo_workdir: &Path,
     git_url: &Url,
     analysis: &[PackageAnalysis<'_>],
     shell: &mut Shell,
 ) -> anyhow::Result<()> {
     let manifest = &mut indoc! {r#"
+        [workspace]
+        members = []
+
         [package]
         name = "__cargo_cpl_doc"
         version = "0.0.0"
@@ -293,19 +299,25 @@ fn prepare_doc(
 
         [lib]
         name = "__TOC"
-
-        [dependencies]
     "#}
     .parse::<toml_edit::Document>()
     .unwrap();
 
-    let dependencies = manifest["dependencies"].as_table_mut().unwrap();
-    for PackageAnalysis { package, .. } in analysis {
-        dependencies[&package.name] = {
-            let mut tbl = toml_edit::InlineTable::default();
-            tbl.get_or_insert("path", package.manifest_dir().as_str());
-            toml_edit::value(tbl)
-        };
+    for PackageAnalysis {
+        relative_manifest_path,
+        ..
+    } in analysis
+    {
+        let dst = Utf8Path::new(".")
+            .join("copy")
+            .join(relative_manifest_path)
+            .with_file_name("");
+
+        manifest["workspace"]["members"]
+            .as_array_mut()
+            .unwrap()
+            .push(dst.as_str())
+            .unwrap();
     }
 
     let toc = &mut TableOfContents::default();
@@ -346,11 +358,38 @@ fn prepare_doc(
 
     xshell::mkdir_p(ws.join(".cargo"))?;
     xshell::mkdir_p(ws.join("src"))?;
+    xshell::rm_rf(ws.join("copy"))?;
     xshell::rm_rf(ws.join("target").join("doc"))?;
 
     xshell::write_file(ws.join(".cargo").join("config.toml"), CONFIG_TOML)?;
     xshell::write_file(ws.join("Cargo.toml"), manifest.to_string())?;
     xshell::write_file(ws.join("src").join("lib.rs"), lib_rs)?;
+
+    for result in Walk::new(repo_workdir) {
+        let from = &result?.into_path();
+        if !from.is_file() {
+            continue;
+        }
+        if from.file_name() == Some("Cargo.toml".as_ref())
+            && !analysis
+                .iter()
+                .any(|PackageAnalysis { package, .. }| package.manifest_path == *from)
+        {
+            shell.status("Skipping", format!("Copying {}", from.display()))?;
+            continue;
+        }
+        if let Ok(rel_path) = from.strip_prefix(repo_workdir) {
+            if let Some(rel_path) = rel_path.to_str() {
+                let to = &ws.join("copy").join(rel_path);
+                xshell::mkdir_p(to.with_file_name(""))?;
+                xshell::cp(from, to)?;
+                shell.status(
+                    "Copied",
+                    format!("`{}` to `{}`", from.display(), to.display()),
+                )?;
+            }
+        }
+    }
 
     if process_builder::process("rustup")
         .args(&["which", "cargo-fmt", "--toolchain", nightly_toolchain])
@@ -366,7 +405,15 @@ fn prepare_doc(
 
     let run_cargo_doc = |open: bool, shell: &mut Shell| -> _ {
         process_builder::process("rustup")
-            .args(&["run", nightly_toolchain, "cargo", "doc", "-Zrustdoc-map"])
+            .args(&[
+                "run",
+                nightly_toolchain,
+                "cargo",
+                "doc",
+                "--workspace",
+                "--no-deps",
+                "-Zrustdoc-map",
+            ])
             .args(if open { &["--open"] } else { &[] })
             .cwd(ws)
             .exec_with_status(shell)
