@@ -39,6 +39,7 @@ pub fn verify(
     let gh_blob_url = |rel_filepath: &Utf8Path| -> Url {
         let mut url = gh_url.clone();
         let mut path_segments = url.path_segments_mut().expect("this is `https://`");
+        path_segments.push("blob");
         path_segments.push(&rev.to_string());
         path_segments.extend(rel_filepath);
         drop(path_segments);
