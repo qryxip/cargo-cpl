@@ -292,7 +292,7 @@ fn prepare_doc(
         edition = "2018"
 
         [lib]
-        name = "{ toc }"
+        name = "__TOC"
 
         [dependencies]
     "#}
