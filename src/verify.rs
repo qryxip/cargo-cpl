@@ -459,7 +459,10 @@ fn modify_index_html(html: &str, analysis: &PackageAnalysis<'_>) -> anyhow::Resu
                         match unmodified {
                             Ok(size) => {
                                 let (div, rem) = (size / 1024, size % 1024);
-                                format!("{}.{} KiB + &quest; KiB", div, 10 * rem / 1024)
+                                format!(
+                                    "{}.{} KiB + (not yet implemented) KiB",
+                                    div, 10 * rem / 1024,
+                                )
                             }
                             Err(err) => format!("<code>{}</code>", v_htmlescape::escape(err)),
                         },
