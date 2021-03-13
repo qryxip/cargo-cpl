@@ -220,7 +220,6 @@ pub fn verify(
         open,
         nightly_toolchain,
         repo_workdir,
-        gh_url,
         &verifications
             .iter()
             .flat_map(|(package_id, verifications)| {
@@ -242,6 +241,7 @@ pub fn verify(
                 Ok(PackageAnalysis {
                     package,
                     krate,
+                    git_url: gh_url,
                     relative_manifest_path,
                     manifest_path_url,
                     code_sizes,
@@ -258,10 +258,54 @@ pub fn verify(
 struct PackageAnalysis<'a> {
     package: &'a cm::Package,
     krate: &'a cm::Target,
+    git_url: &'a Url,
     relative_manifest_path: &'a Utf8Path,
     manifest_path_url: Url,
     code_sizes: Option<CodeSizes>,
     verifications: &'a BTreeSet<(&'a Url, Url)>,
+}
+
+impl PackageAnalysis<'_> {
+    fn to_html_header(&self) -> String {
+        format!(
+            indoc! {r##"
+                <script>
+                "use strict";
+
+                document.addEventListener("DOMContentLoaded", () => modifyDocblock(
+                  "{}",
+                  "{}",
+                  {},
+                  "cargo add {} --git \"{}\"",
+                  {},
+                  [{}],
+                ));
+
+                {}
+                </script>
+            "##},
+            self.relative_manifest_path,
+            self.manifest_path_url,
+            match &self.package.license {
+                Some(license) => format!("\"{}\"", license),
+                None => "null".to_owned(),
+            },
+            self.package.name,
+            self.git_url,
+            match &self.code_sizes {
+                Some(CodeSizes { unmodified: Ok(n) }) => {
+                    let (div, rem) = (n / 1024, n % 1024);
+                    format!("\"{}.{}\"", div, 10 * rem / 1024)
+                }
+                _ => "null".to_owned(),
+            },
+            self.verifications
+                .iter()
+                .map(|(u1, u2)| format!("[\"{}\", \"{}\"]", u1, u2))
+                .join(","),
+            include_str!("../injection/dist/index.js").trim_start_matches("\"use strict\";\n"),
+        )
+    }
 }
 
 struct CodeSizes {
@@ -285,7 +329,6 @@ fn prepare_doc(
     open: bool,
     nightly_toolchain: &str,
     repo_workdir: &Path,
-    git_url: &Url,
     analysis: &[PackageAnalysis<'_>],
     shell: &mut Shell,
 ) -> anyhow::Result<()> {
@@ -347,7 +390,10 @@ fn prepare_doc(
         lib_rs += "\n";
     }
     lib_rs += "\n//! # As `[dependencies]`\n//!\n//! ```toml\n";
-    for PackageAnalysis { package, .. } in analysis {
+    for PackageAnalysis {
+        package, git_url, ..
+    } in analysis
+    {
         lib_rs += &format!("//! {} = {{ git = \"{}\" }}\n", package.name, git_url);
     }
     lib_rs += "//! ```\n";
@@ -404,38 +450,34 @@ fn prepare_doc(
             .exec_with_status(shell)?;
     }
 
-    let run_cargo_doc = |open: bool, shell: &mut Shell| -> _ {
+    let run_cargo_doc = |p: &str, open: bool, rustdocflags: Option<&str>, shell: &mut Shell| -> _ {
         process_builder::process("rustup")
             .args(&[
                 "run",
                 nightly_toolchain,
                 "cargo",
                 "doc",
-                "--workspace",
+                "-p",
+                p,
                 "--no-deps",
                 "-Zrustdoc-map",
             ])
             .args(if open { &["--open"] } else { &[] })
+            .envs(rustdocflags.map(|v| ("RUSTDOCFLAGS", v)))
             .cwd(ws)
             .exec_with_status(shell)
     };
 
-    run_cargo_doc(false, shell)?;
-
     for analysis in analysis {
-        let path = &ws
-            .join("target")
-            .join("doc")
-            .join(analysis.krate.crate_name())
-            .join("index.html");
-        let index_html = xshell::read_file(path)?;
-        let index_html = modify_index_html(&index_html, analysis)?;
-        xshell::write_file(path, index_html)?;
-        shell.status("Modified", path.display())?;
+        xshell::write_file(ws.join("header.html"), analysis.to_html_header())?;
+        run_cargo_doc(
+            &analysis.package.name,
+            false,
+            Some("--html-in-header ./header.html"),
+            shell,
+        )?;
     }
-    if open {
-        run_cargo_doc(true, shell)?;
-    }
+    run_cargo_doc("__cargo_cpl_doc", open, None, shell)?;
     return Ok(());
 
     static CONFIG_TOML: &str = indoc! {r#"
@@ -448,6 +490,7 @@ fn modify_index_html(html: &str, analysis: &PackageAnalysis<'_>) -> anyhow::Resu
     let PackageAnalysis {
         package,
         krate: _,
+        git_url: _,
         relative_manifest_path,
         manifest_path_url,
         code_sizes,

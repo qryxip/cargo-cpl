@@ -1,6 +1,8 @@
 use anyhow::{anyhow, bail, Context as _};
 use itertools::Itertools as _;
+use maplit::btreemap;
 use std::{
+    collections::BTreeMap,
     env,
     ffi::{OsStr, OsString},
     fmt,
@@ -16,21 +18,15 @@ pub(crate) fn process(program: impl AsRef<OsStr>) -> ProcessBuilder<NotPresent> 
         program: program.as_ref().to_owned(),
         args: vec![],
         cwd: (),
+        env: btreemap!(),
     }
-}
-
-pub(crate) fn cargo_exe() -> anyhow::Result<PathBuf> {
-    env::var_os("CARGO")
-        .with_context(|| {
-            "missing `$CARGO`. run this program with `cargo equip`, not `cargo-equip equip`"
-        })
-        .map(Into::into)
 }
 
 #[derive(Debug)]
 pub(crate) struct ProcessBuilder<C: Presence<PathBuf>> {
     program: OsString,
     args: Vec<OsString>,
+    env: BTreeMap<String, OsString>,
     cwd: C::Value,
 }
 
@@ -45,11 +41,30 @@ impl<C: Presence<PathBuf>> ProcessBuilder<C> {
         self
     }
 
+    pub(crate) fn env(mut self, key: &str, val: impl AsRef<OsStr>) -> Self {
+        self.env.insert(key.to_owned(), val.as_ref().to_owned());
+        self
+    }
+
+    pub(crate) fn envs<I, K, V>(mut self, vars: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: AsRef<OsStr>,
+    {
+        self.env.extend(
+            vars.into_iter()
+                .map(|(k, v)| (k.as_ref().to_owned(), v.as_ref().to_owned())),
+        );
+        self
+    }
+
     pub(crate) fn cwd(self, cwd: impl AsRef<Path>) -> ProcessBuilder<Present> {
         ProcessBuilder {
             program: self.program,
             args: self.args,
             cwd: cwd.as_ref().to_owned(),
+            env: self.env,
         }
     }
 }
@@ -58,6 +73,7 @@ impl ProcessBuilder<Present> {
     fn output(&self, check: bool, stdout: Stdio, stderr: Stdio) -> anyhow::Result<Output> {
         let output = std::process::Command::new(&self.program)
             .args(&self.args)
+            .envs(&self.env)
             .current_dir(&self.cwd)
             .stdout(stdout)
             .stderr(stderr)
