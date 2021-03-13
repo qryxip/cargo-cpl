@@ -272,14 +272,14 @@ impl PackageAnalysis<'_> {
                 <script>
                 "use strict";
 
-                document.addEventListener("DOMContentLoaded", () => modifyDocblock(
+                registerModification(
                     "{}",
                     "{}",
                     {},
                     "cargo add {} --git {}",
                     {},
                     [{}],
-                ));
+                );
 
                 {}
                 </script>

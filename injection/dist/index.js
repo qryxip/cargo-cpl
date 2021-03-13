@@ -1,8 +1,11 @@
 "use strict";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function modifyDocblock(manifestRelPath, manifestHref, license, cargoAddCommand, codeSizeUnmodified, verifiedWith) {
-    const docblock = document.querySelector(".docblock");
-    if (docblock) {
+function registerModification(manifestRelPath, manifestHref, license, cargoAddCommand, codeSizeUnmodified, verifiedWith) {
+    document.addEventListener("DOMContentLoaded", () => {
+        const docblock = document.querySelector(".docblock");
+        if (docblock === null) {
+            return;
+        }
         downgradeSectionHeaders(docblock);
         docblock.prepend(createHeader("Description", "description"));
         docblock.prepend(createVerifiedWithSection(verifiedWith));
@@ -13,7 +16,7 @@ function modifyDocblock(manifestRelPath, manifestHref, license, cargoAddCommand,
         }
         docblock.prepend(createDependencySection(cargoAddCommand));
         docblock.prepend(createFirstSection(manifestRelPath, manifestHref, license));
-    }
+    });
 }
 function downgradeSectionHeaders(docblock) {
     docblock.querySelectorAll(".section-header").forEach((sectionHeader) => {

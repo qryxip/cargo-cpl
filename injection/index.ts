@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function modifyDocblock(
+function registerModification(
   manifestRelPath: string,
   manifestHref: string,
   license: string,
@@ -7,8 +7,11 @@ function modifyDocblock(
   codeSizeUnmodified: string | null,
   verifiedWith: [string, string][]
 ): void {
-  const docblock = document.querySelector(".docblock");
-  if (docblock) {
+  document.addEventListener("DOMContentLoaded", () => {
+    const docblock = document.querySelector(".docblock");
+    if (docblock === null) {
+      return;
+    }
     downgradeSectionHeaders(docblock);
     docblock.prepend(createHeader("Description", "description"));
     docblock.prepend(createVerifiedWithSection(verifiedWith));
@@ -21,7 +24,7 @@ function modifyDocblock(
     docblock.prepend(
       createFirstSection(manifestRelPath, manifestHref, license)
     );
-  }
+  });
 }
 
 function downgradeSectionHeaders(docblock: Element): void {
