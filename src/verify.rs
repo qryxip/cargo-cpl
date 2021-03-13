@@ -273,12 +273,12 @@ impl PackageAnalysis<'_> {
                 "use strict";
 
                 document.addEventListener("DOMContentLoaded", () => modifyDocblock(
-                  "{}",
-                  "{}",
-                  {},
-                  "cargo add {} --git \"{}\"",
-                  {},
-                  [{}],
+                    "{}",
+                    "{}",
+                    {},
+                    "cargo add {} --git {}",
+                    {},
+                    [{}],
                 ));
 
                 {}

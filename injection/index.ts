@@ -1,11 +1,12 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function modifyDocblock(
   manifestRelPath: string,
   manifestHref: string,
   license: string,
   cargoAddCommand: string,
   codeSizeUnmodified: string | null,
-  verifiedWith: [string, string][],
-) {
+  verifiedWith: [string, string][]
+): void {
   const docblock = document.querySelector(".docblock");
   if (docblock) {
     downgradeSectionHeaders(docblock);
@@ -17,22 +18,32 @@ function modifyDocblock(
       docblock.prepend(createHeader("Code size", "code-size"));
     }
     docblock.prepend(createDependencySection(cargoAddCommand));
-    docblock.prepend(createFirstSection(manifestRelPath, manifestHref, license));
+    docblock.prepend(
+      createFirstSection(manifestRelPath, manifestHref, license)
+    );
   }
 }
 
-function downgradeSectionHeaders(docblock: Element) {
+function downgradeSectionHeaders(docblock: Element): void {
   docblock.querySelectorAll(".section-header").forEach((sectionHeader) => {
-    const replacement = document.createElement((() => {
-      switch (sectionHeader.tagName) {
-        case 'H1': return 'H2';
-        case 'H2': return 'H3';
-        case 'H3': return 'H4';
-        case 'H4': return 'H5';
-        case 'H5': return 'H6';
-        default: return sectionHeader.tagName;
-      }
-    })());
+    const replacement = document.createElement(
+      (() => {
+        switch (sectionHeader.tagName) {
+          case "H1":
+            return "H2";
+          case "H2":
+            return "H3";
+          case "H3":
+            return "H4";
+          case "H4":
+            return "H5";
+          case "H5":
+            return "H6";
+          default:
+            return sectionHeader.tagName;
+        }
+      })()
+    );
     for (const { name, value } of sectionHeader.attributes) {
       replacement.setAttribute(name, value);
     }
@@ -41,7 +52,9 @@ function downgradeSectionHeaders(docblock: Element) {
   });
 }
 
-function createVerifiedWithSection(verifiedWith: [string, string][]): HTMLElement {
+function createVerifiedWithSection(
+  verifiedWith: [string, string][]
+): HTMLElement {
   const ul = document.createElement("ul");
   for (const [problemURL, blobURL] of verifiedWith) {
     const li = document.createElement("li");
@@ -60,9 +73,11 @@ function createVerifiedWithSection(verifiedWith: [string, string][]): HTMLElemen
 function createCodeSizeSection(codeSizeUnmodified: string): HTMLElement {
   const ul = document.createElement("ul");
   const li1 = document.createElement("li");
-  li1.append("unmodified: " + codeSizeUnmodified + " KiB + (not yet implemented) KiB");
+  li1.append(
+    "unmodified: " + codeSizeUnmodified + " KiB + (not yet implemented) KiB"
+  );
   const li2 = document.createElement("li");
-  li2.append("")
+  li2.append("");
   ul.append(li1);
   return ul;
 }
@@ -76,7 +91,11 @@ function createDependencySection(cargoAddCommand: string): HTMLElement {
   return pre;
 }
 
-function createFirstSection(manifestRelPath: string, manifestHref: string, license: string): HTMLElement {
+function createFirstSection(
+  manifestRelPath: string,
+  manifestHref: string,
+  license: string
+): HTMLElement {
   const ul = document.createElement("ul");
   const li1 = document.createElement("li");
   const a = document.createElement("a");

@@ -1,4 +1,5 @@
 "use strict";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function modifyDocblock(manifestRelPath, manifestHref, license, cargoAddCommand, codeSizeUnmodified, verifiedWith) {
     const docblock = document.querySelector(".docblock");
     if (docblock) {
@@ -18,12 +19,18 @@ function downgradeSectionHeaders(docblock) {
     docblock.querySelectorAll(".section-header").forEach((sectionHeader) => {
         const replacement = document.createElement((() => {
             switch (sectionHeader.tagName) {
-                case 'H1': return 'H2';
-                case 'H2': return 'H3';
-                case 'H3': return 'H4';
-                case 'H4': return 'H5';
-                case 'H5': return 'H6';
-                default: return sectionHeader.tagName;
+                case "H1":
+                    return "H2";
+                case "H2":
+                    return "H3";
+                case "H3":
+                    return "H4";
+                case "H4":
+                    return "H5";
+                case "H5":
+                    return "H6";
+                default:
+                    return sectionHeader.tagName;
             }
         })());
         for (const { name, value } of sectionHeader.attributes) {
