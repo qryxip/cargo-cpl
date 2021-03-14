@@ -11,7 +11,7 @@ function registerModification(
     return;
   }
   document.addEventListener("DOMContentLoaded", () => {
-    const docblock = document.querySelector(".docblock");
+    const docblock = findOrCreateDocblock();
     if (docblock === null) {
       return;
     }
@@ -28,6 +28,40 @@ function registerModification(
       createFirstSection(manifestRelPath, manifestHref, license)
     );
   });
+}
+
+function findOrCreateDocblock(): Element | null {
+  let docblock = document.querySelector(".docblock");
+  if (docblock !== null) {
+    return docblock;
+  }
+  const fqn = document.querySelector(".fqn");
+  if (fqn === null) {
+    return null;
+  }
+  docblock = document.createElement("div");
+  docblock.setAttribute("class", "docblock");
+  fqn.insertAdjacentElement("afterend", docblock);
+  fqn.insertAdjacentElement("afterend", createToggleWrapper());
+  return docblock;
+}
+
+function createToggleWrapper(): Element {
+  const toggleWrapper = document.createElement("div");
+  const a = document.createElement("a");
+  const span1 = document.createElement("span");
+  const span2 = document.createElement("span");
+  toggleWrapper.setAttribute("class", "toggle-wrapper");
+  a.setAttribute("class", "collapse-toggle");
+  a.setAttribute("href", "javascript:void(0)");
+  span1.setAttribute("class", "inner");
+  span2.setAttribute("class", "toggle-label");
+  span2.setAttribute("style", "display: none;");
+  span1.append("-");
+  span2.append(" Expand description");
+  a.append("[", span1, "] ", span2);
+  toggleWrapper.append(a);
+  return toggleWrapper;
 }
 
 function downgradeSectionHeaders(docblock: Element): void {

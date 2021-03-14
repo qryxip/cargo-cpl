@@ -281,8 +281,7 @@ impl PackageAnalysis<'_> {
                     [{}],
                 );
 
-                {}
-                </script>
+                {}</script>
             "##},
             self.relative_manifest_path,
             self.manifest_path_url,
