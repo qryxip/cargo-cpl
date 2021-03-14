@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function registerModification(
   manifestDirBlobURL: string,
-  license: string,
+  license: string | null,
   cargoAddCommand: string,
   dependencyUL: [string, string][],
   codeSizeUnmodified: number | string | null,
@@ -164,7 +164,7 @@ function createCodeSizeSection(
   if (typeof codeSizeUnmodified === "number") {
     const div = Math.floor(codeSizeUnmodified / 1024);
     const rem = codeSizeUnmodified % 1024;
-    li1.append("" + div + "." + Math.floor(10 * rem / 1024) + " KiB");
+    li1.append("" + div + "." + Math.floor((10 * rem) / 1024) + " KiB");
   } else {
     const code = document.createElement("code");
     code.append(codeSizeUnmodified);
@@ -218,20 +218,26 @@ function createCargoAddCommandSection(cargoAddCommand: string): HTMLElement {
 
 function createFirstSection(
   manifestDirBlobURL: string,
-  license: string
+  license: string | null
 ): HTMLElement {
   const ul = document.createElement("ul");
   const li1 = document.createElement("li");
   const a = document.createElement("a");
   const li2 = document.createElement("li");
-  const code = document.createElement("code");
+  let licenseElement;
 
   a.setAttribute("href", manifestDirBlobURL);
 
   a.append("View on GitHub");
   li1.append(a);
-  code.append(license);
-  li2.append("License: ", code);
+  if (license === null) {
+    licenseElement = document.createElement("strong");
+    licenseElement.append("missing");
+  } else {
+    licenseElement = document.createElement("code");
+    licenseElement.append(license);
+  }
+  li2.append("License: ", licenseElement);
   ul.append(li1, li2);
 
   return ul;
