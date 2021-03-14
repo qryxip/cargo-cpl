@@ -1,6 +1,6 @@
 "use strict";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function registerModification(manifestRelPath, manifestHref, license, cargoAddCommand, codeSizeUnmodified, verifiedWith) {
+function registerModification(manifestDirBlobURL, license, cargoAddCommand, codeSizeUnmodified, dependencyUL, verifiedWith) {
     if (!window.location.pathname.endsWith("/index.html")) {
         return;
     }
@@ -13,12 +13,14 @@ function registerModification(manifestRelPath, manifestHref, license, cargoAddCo
         docblock.prepend(createHeader("Description", "description"));
         docblock.prepend(createVerifiedWithSection(verifiedWith));
         docblock.prepend(createHeader("Verified with", "verified-with"));
+        docblock.prepend(createDependenciesSection(dependencyUL));
+        docblock.prepend(createHeader("Dependencies", "dependencies"));
         if (codeSizeUnmodified !== null) {
             docblock.prepend(createCodeSizeSection(codeSizeUnmodified));
             docblock.prepend(createHeader("Code size", "code-size"));
         }
-        docblock.prepend(createDependencySection(cargoAddCommand));
-        docblock.prepend(createFirstSection(manifestRelPath, manifestHref, license));
+        docblock.prepend(createCargoAddCommandSection(cargoAddCommand));
+        docblock.prepend(createFirstSection(manifestDirBlobURL, license));
     });
 }
 function findOrCreateDocblock() {
@@ -123,6 +125,21 @@ function createMark(src, char) {
     mark.setAttribute("height", "20");
     return mark;
 }
+function createDependenciesSection(items) {
+    if (items.length === 0) {
+        return "No dependencies.";
+    }
+    const ul = document.createElement("ul");
+    for (const [text, href] of items) {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.setAttribute("href", href);
+        a.append(text);
+        li.append(a);
+        ul.append(li);
+    }
+    return ul;
+}
 function createCodeSizeSection(codeSizeUnmodified) {
     const ul = document.createElement("ul");
     const li1 = document.createElement("li");
@@ -132,7 +149,7 @@ function createCodeSizeSection(codeSizeUnmodified) {
     ul.append(li1);
     return ul;
 }
-function createDependencySection(cargoAddCommand) {
+function createCargoAddCommandSection(cargoAddCommand) {
     const pre = document.createElement("pre");
     const code = document.createElement("code");
     code.setAttribute("class", "language-console");
@@ -140,19 +157,17 @@ function createDependencySection(cargoAddCommand) {
     pre.append(code);
     return pre;
 }
-function createFirstSection(manifestRelPath, manifestHref, license) {
+function createFirstSection(manifestDirBlobURL, license) {
     const ul = document.createElement("ul");
     const li1 = document.createElement("li");
     const a = document.createElement("a");
-    a.setAttribute("href", manifestHref);
-    const code1 = document.createElement("code");
-    code1.append(manifestRelPath);
-    a.append(code1);
-    li1.append("Manifest: ", a);
     const li2 = document.createElement("li");
-    const code2 = document.createElement("code");
-    code2.append(license);
-    li2.append("License: ", code2);
+    const code = document.createElement("code");
+    a.setAttribute("href", manifestDirBlobURL);
+    a.append("View on GitHub");
+    li1.append(a);
+    code.append(license);
+    li2.append("License: ", code);
     ul.append(li1, li2);
     return ul;
 }

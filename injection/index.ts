@@ -1,10 +1,10 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function registerModification(
-  manifestRelPath: string,
-  manifestHref: string,
+  manifestDirBlobURL: string,
   license: string,
   cargoAddCommand: string,
   codeSizeUnmodified: string | null,
+  dependencyUL: [string, string][],
   verifiedWith: [string, string][]
 ): void {
   if (!window.location.pathname.endsWith("/index.html")) {
@@ -19,14 +19,14 @@ function registerModification(
     docblock.prepend(createHeader("Description", "description"));
     docblock.prepend(createVerifiedWithSection(verifiedWith));
     docblock.prepend(createHeader("Verified with", "verified-with"));
+    docblock.prepend(createDependenciesSection(dependencyUL));
+    docblock.prepend(createHeader("Dependencies", "dependencies"));
     if (codeSizeUnmodified !== null) {
       docblock.prepend(createCodeSizeSection(codeSizeUnmodified));
       docblock.prepend(createHeader("Code size", "code-size"));
     }
-    docblock.prepend(createDependencySection(cargoAddCommand));
-    docblock.prepend(
-      createFirstSection(manifestRelPath, manifestHref, license)
-    );
+    docblock.prepend(createCargoAddCommandSection(cargoAddCommand));
+    docblock.prepend(createFirstSection(manifestDirBlobURL, license));
   });
 }
 
@@ -155,6 +155,24 @@ function createMark(src: string, char: string): HTMLImageElement {
   return mark;
 }
 
+function createDependenciesSection(
+  items: [string, string][]
+): HTMLUListElement | string {
+  if (items.length === 0) {
+    return "No dependencies.";
+  }
+  const ul = document.createElement("ul");
+  for (const [text, href] of items) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.setAttribute("href", href);
+    a.append(text);
+    li.append(a);
+    ul.append(li);
+  }
+  return ul;
+}
+
 function createCodeSizeSection(codeSizeUnmodified: string): HTMLElement {
   const ul = document.createElement("ul");
   const li1 = document.createElement("li");
@@ -167,7 +185,7 @@ function createCodeSizeSection(codeSizeUnmodified: string): HTMLElement {
   return ul;
 }
 
-function createDependencySection(cargoAddCommand: string): HTMLElement {
+function createCargoAddCommandSection(cargoAddCommand: string): HTMLElement {
   const pre = document.createElement("pre");
   const code = document.createElement("code");
   code.setAttribute("class", "language-console");
@@ -177,23 +195,23 @@ function createDependencySection(cargoAddCommand: string): HTMLElement {
 }
 
 function createFirstSection(
-  manifestRelPath: string,
-  manifestHref: string,
+  manifestDirBlobURL: string,
   license: string
 ): HTMLElement {
   const ul = document.createElement("ul");
   const li1 = document.createElement("li");
   const a = document.createElement("a");
-  a.setAttribute("href", manifestHref);
-  const code1 = document.createElement("code");
-  code1.append(manifestRelPath);
-  a.append(code1);
-  li1.append("Manifest: ", a);
   const li2 = document.createElement("li");
-  const code2 = document.createElement("code");
-  code2.append(license);
-  li2.append("License: ", code2);
+  const code = document.createElement("code");
+
+  a.setAttribute("href", manifestDirBlobURL);
+
+  a.append("View on GitHub");
+  li1.append(a);
+  code.append(license);
+  li2.append("License: ", code);
   ul.append(li1, li2);
+
   return ul;
 }
 

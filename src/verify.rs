@@ -216,6 +216,22 @@ pub fn verify(
         }
     }
 
+    let crate_names = metadata_list
+        .values()
+        .flat_map(|metadata| {
+            metadata
+                .workspace_members
+                .iter()
+                .map(move |id| &metadata[id])
+                .flat_map(|package| {
+                    let krate = package
+                        .lib_target()
+                        .or_else(|| package.proc_macro_target())?;
+                    Some((&package.name, krate.crate_name()))
+                })
+        })
+        .collect::<HashMap<_, _>>();
+
     prepare_doc(
         open,
         nightly_toolchain,
@@ -236,14 +252,30 @@ pub fn verify(
                     .map_err(|_| {
                         anyhow!("`{}` is outside of the repository", package.manifest_path)
                     })?;
-                let manifest_path_url = gh_blob_url(relative_manifest_path);
+                let manifest_dir_blob_url = gh_blob_url(&relative_manifest_path.with_file_name(""));
+                let dependency_ul = {
+                    let metadata = &metadata_list[&package.id];
+                    let crate_names = metadata
+                        .workspace_members
+                        .iter()
+                        .map(move |id| &metadata[id])
+                        .flat_map(|package| {
+                            let krate = package
+                                .lib_target()
+                                .or_else(|| package.proc_macro_target())?;
+                            Some((&*package.name, krate.crate_name()))
+                        })
+                        .collect::<HashMap<_, _>>();
+                    package.dependency_ul(|k| crate_names.get(k).map(|v| &**v))?
+                };
                 let code_sizes = krate.is_lib().then(|| CodeSizes::new(krate));
                 Ok(PackageAnalysis {
                     package,
                     krate,
                     git_url: gh_url,
                     relative_manifest_path,
-                    manifest_path_url,
+                    manifest_dir_blob_url,
+                    dependency_ul,
                     code_sizes,
                     verifications,
                 })
@@ -260,7 +292,8 @@ struct PackageAnalysis<'a> {
     krate: &'a cm::Target,
     git_url: &'a Url,
     relative_manifest_path: &'a Utf8Path,
-    manifest_path_url: Url,
+    manifest_dir_blob_url: Url,
+    dependency_ul: Vec<(String, String)>,
     code_sizes: Option<CodeSizes>,
     verifications: &'a BTreeSet<(&'a Url, Url)>,
 }
@@ -277,14 +310,13 @@ impl PackageAnalysis<'_> {
                     {},
                     {},
                     {},
-                    {},
+                    [{}],
                     [{}],
                 );
 
                 {}</script>
             "##},
-            json!(self.relative_manifest_path),
-            json!(&self.manifest_path_url),
+            json!(&self.manifest_dir_blob_url),
             json!(&self.package.license),
             json!(format!(
                 "cargo add {} --git {}",
@@ -297,6 +329,10 @@ impl PackageAnalysis<'_> {
                 }
                 _ => "null".to_owned(),
             },
+            self.dependency_ul
+                .iter()
+                .map(|(s, u)| json!([s, u]))
+                .join(","),
             self.verifications
                 .iter()
                 .map(|(u1, u2)| json!([u1, u2]))
@@ -320,6 +356,107 @@ impl CodeSizes {
                 unmodified: Err(err),
             },
         }
+    }
+}
+
+trait PackageExt {
+    fn dependency_ul<'a>(
+        &self,
+        crate_name: impl FnMut(&str) -> Option<&'a str>,
+    ) -> anyhow::Result<Vec<(String, String)>>;
+}
+
+impl PackageExt for cm::Package {
+    fn dependency_ul<'a>(
+        &self,
+        mut crate_name: impl FnMut(&str) -> Option<&'a str>,
+    ) -> anyhow::Result<Vec<(String, String)>> {
+        let Manifest { dependencies } = toml::from_str(&xshell::read_file(&self.manifest_path)?)?;
+        let paths = dependencies
+            .into_iter()
+            .flat_map(|(name_in_toml, value)| match value {
+                ManifestDependency::Braced { package, path } => {
+                    Some((package.unwrap_or(name_in_toml), path?))
+                }
+                ManifestDependency::Other(_) => None,
+            })
+            .collect::<HashMap<_, _>>();
+
+        return Ok(self
+            .dependencies
+            .iter()
+            .filter(|cm::Dependency { kind, .. }| *kind == cm::DependencyKind::Normal)
+            .map(
+                |cm::Dependency {
+                     name, source, req, ..
+                 }| {
+                    if source.as_deref()
+                        == Some("registry+https://github.com/rust-lang/crates.io-index")
+                    {
+                        (
+                            format!("{} {}", name, req),
+                            format!("https://docs.rs/{}/{}", name, req),
+                        )
+                    } else if let Some(url) = source.as_ref().and_then(|s| s.strip_prefix("git+")) {
+                        (format!("{} (git+{})", name, url), url.to_owned())
+                    } else if let Some(source) = &source {
+                        (format!("{} ({})", name, source), "".to_owned())
+                    } else if let (Some(path), Some(crate_name)) =
+                        (paths.get(name), crate_name(name))
+                    {
+                        (
+                            format!("{} (path+{})", name, path),
+                            format!("../{}/index.html", crate_name),
+                        )
+                    } else {
+                        (format!("{} {} (path+unknown)", name, req), "".to_owned())
+                    }
+                },
+            )
+            .collect());
+
+        #[derive(Deserialize)]
+        struct Manifest {
+            #[serde(default)]
+            dependencies: HashMap<String, ManifestDependency>,
+        }
+
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum ManifestDependency {
+            Braced {
+                package: Option<String>,
+                path: Option<String>,
+            },
+            Other(toml::Value),
+        }
+    }
+}
+
+trait DependencyExt {
+    fn to_list_item(&self) -> Option<(String, String)>;
+}
+
+impl DependencyExt for cm::Dependency {
+    fn to_list_item(&self) -> Option<(String, String)> {
+        (self.kind == cm::DependencyKind::Normal).then(|| ())?;
+        Some(
+            if self.source.as_deref()
+                == Some("registry+https://github.com/rust-lang/crates.io-index")
+            {
+                (
+                    format!("{} {}", self.name, self.req),
+                    format!("https://docs.rs/{}/{}", self.name, self.req),
+                )
+            } else if let Some(url) = self.source.as_ref().and_then(|s| s.strip_prefix("git+")) {
+                (format!("{} (git+{})", self.name, url), url.to_owned())
+            } else if let Some(source) = &self.source {
+                (format!("{} ({})", self.name, source), "".to_owned())
+            } else {
+                //(self.name.clone(), format!("../{}/index.html", self.name))
+                todo!();
+            },
+        )
     }
 }
 
