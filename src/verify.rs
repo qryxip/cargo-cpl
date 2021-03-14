@@ -373,13 +373,30 @@ impl PackageExt for cm::Package {
         mut crate_name: impl FnMut(&str) -> Option<&'a str>,
     ) -> anyhow::Result<Vec<(String, String)>> {
         let Manifest { dependencies } = toml::from_str(&xshell::read_file(&self.manifest_path)?)?;
+
         let paths = dependencies
-            .into_iter()
+            .iter()
             .flat_map(|(name_in_toml, value)| match value {
-                ManifestDependency::Braced { package, path } => {
-                    Some((package.unwrap_or(name_in_toml), path?))
+                ManifestDependency::Version(_) => None,
+                ManifestDependency::Braced { package, path, .. } => {
+                    Some((package.as_ref().unwrap_or(name_in_toml), path.as_ref()?))
                 }
-                ManifestDependency::Other(_) => None,
+            })
+            .collect::<HashMap<_, _>>();
+
+        let short_reqs = dependencies
+            .iter()
+            .flat_map(|(name_in_toml, value)| {
+                let version = match value {
+                    ManifestDependency::Version(version) => version,
+                    ManifestDependency::Braced { version, .. } => version.as_ref()?,
+                };
+                let short_req = if version.chars().all(|c| matches!(c, '0'..='9' | '.')) {
+                    format!("^{}", version)
+                } else {
+                    version.clone()
+                };
+                Some((name_in_toml, short_req))
             })
             .collect::<HashMap<_, _>>();
 
@@ -389,11 +406,19 @@ impl PackageExt for cm::Package {
             .filter(|cm::Dependency { kind, .. }| *kind == cm::DependencyKind::Normal)
             .map(
                 |cm::Dependency {
-                     name, source, req, ..
+                     name,
+                     source,
+                     req,
+                     rename,
+                     ..
                  }| {
                     if source.as_deref()
                         == Some("registry+https://github.com/rust-lang/crates.io-index")
                     {
+                        let req = short_reqs
+                            .get(rename.as_ref().unwrap_or(name))
+                            .cloned()
+                            .unwrap_or_else(|| req.to_string());
                         (
                             format!("{} {}", name, req),
                             format!("https://docs.rs/{}/{}", name, req),
@@ -410,7 +435,7 @@ impl PackageExt for cm::Package {
                             format!("../{}/index.html", crate_name),
                         )
                     } else {
-                        (format!("{} {} (path+unknown)", name, req), "".to_owned())
+                        (format!("{} (unknown)", name), "".to_owned())
                     }
                 },
             )
@@ -425,11 +450,12 @@ impl PackageExt for cm::Package {
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum ManifestDependency {
+            Version(String),
             Braced {
                 package: Option<String>,
                 path: Option<String>,
+                version: Option<String>,
             },
-            Other(toml::Value),
         }
     }
 }
