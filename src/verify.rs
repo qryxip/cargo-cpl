@@ -309,24 +309,24 @@ impl PackageAnalysis<'_> {
                     {},
                     {},
                     {},
-                    {},
                     [{}],
+                    {},
                     [{}],
                 );
 
                 {}</script>
             "##},
-            json!(&self.manifest_dir_blob_url),
-            json!(&self.package.license),
+            json!(self.manifest_dir_blob_url),
+            json!(self.package.license),
             json!(format!(
                 "cargo add {} --git {}",
                 self.package.name, self.git_url,
             )),
-            json!(self.code_sizes.as_ref().map(CodeSizes::unmodified)),
             self.dependency_ul
                 .iter()
                 .map(|(s, u)| json!([s, u]))
                 .join(","),
+            json!(self.code_sizes.as_ref().map(CodeSizes::unmodified)),
             self.verifications
                 .iter()
                 .map(|(u1, u2)| json!([u1, u2]))

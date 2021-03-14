@@ -3,8 +3,8 @@ function registerModification(
   manifestDirBlobURL: string,
   license: string,
   cargoAddCommand: string,
-  codeSizeUnmodified: number | string | null,
   dependencyUL: [string, string][],
+  codeSizeUnmodified: number | string | null,
   verifiedWith: [string, string][]
 ): void {
   if (!window.location.pathname.endsWith("/index.html")) {
@@ -19,12 +19,12 @@ function registerModification(
     docblock.prepend(createHeader("Description", "description"));
     docblock.prepend(createVerifiedWithSection(verifiedWith));
     docblock.prepend(createHeader("Verified with", "verified-with"));
-    docblock.prepend(createDependenciesSection(dependencyUL));
-    docblock.prepend(createHeader("Dependencies", "dependencies"));
     if (codeSizeUnmodified !== null) {
       docblock.prepend(createCodeSizeSection(codeSizeUnmodified));
       docblock.prepend(createHeader("Code size", "code-size"));
     }
+    docblock.prepend(createDependenciesSection(dependencyUL));
+    docblock.prepend(createHeader("Dependencies", "dependencies"));
     docblock.prepend(createCargoAddCommandSection(cargoAddCommand));
     docblock.prepend(createFirstSection(manifestDirBlobURL, license));
   });
@@ -155,24 +155,6 @@ function createMark(src: string, char: string): HTMLImageElement {
   return mark;
 }
 
-function createDependenciesSection(
-  items: [string, string][]
-): HTMLUListElement | string {
-  if (items.length === 0) {
-    return "No dependencies.";
-  }
-  const ul = document.createElement("ul");
-  for (const [text, href] of items) {
-    const li = document.createElement("li");
-    const a = document.createElement("a");
-    a.setAttribute("href", href);
-    a.append(text);
-    li.append(a);
-    ul.append(li);
-  }
-  return ul;
-}
-
 function createCodeSizeSection(
   codeSizeUnmodified: number | string
 ): HTMLElement {
@@ -204,6 +186,24 @@ function createCodeSizeSection(
     " resolved + doc-comment removed + minified: (not yet implemented)"
   );
   ul.append(li1, li2, li3);
+  return ul;
+}
+
+function createDependenciesSection(
+  items: [string, string][]
+): HTMLUListElement | string {
+  if (items.length === 0) {
+    return "No dependencies.";
+  }
+  const ul = document.createElement("ul");
+  for (const [text, href] of items) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.setAttribute("href", href);
+    a.append(text);
+    li.append(a);
+    ul.append(li);
+  }
   return ul;
 }
 

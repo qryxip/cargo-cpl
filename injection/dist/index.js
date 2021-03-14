@@ -1,6 +1,6 @@
 "use strict";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function registerModification(manifestDirBlobURL, license, cargoAddCommand, codeSizeUnmodified, dependencyUL, verifiedWith) {
+function registerModification(manifestDirBlobURL, license, cargoAddCommand, dependencyUL, codeSizeUnmodified, verifiedWith) {
     if (!window.location.pathname.endsWith("/index.html")) {
         return;
     }
@@ -13,12 +13,12 @@ function registerModification(manifestDirBlobURL, license, cargoAddCommand, code
         docblock.prepend(createHeader("Description", "description"));
         docblock.prepend(createVerifiedWithSection(verifiedWith));
         docblock.prepend(createHeader("Verified with", "verified-with"));
-        docblock.prepend(createDependenciesSection(dependencyUL));
-        docblock.prepend(createHeader("Dependencies", "dependencies"));
         if (codeSizeUnmodified !== null) {
             docblock.prepend(createCodeSizeSection(codeSizeUnmodified));
             docblock.prepend(createHeader("Code size", "code-size"));
         }
+        docblock.prepend(createDependenciesSection(dependencyUL));
+        docblock.prepend(createHeader("Dependencies", "dependencies"));
         docblock.prepend(createCargoAddCommandSection(cargoAddCommand));
         docblock.prepend(createFirstSection(manifestDirBlobURL, license));
     });
@@ -125,21 +125,6 @@ function createMark(src, char) {
     mark.setAttribute("height", "20");
     return mark;
 }
-function createDependenciesSection(items) {
-    if (items.length === 0) {
-        return "No dependencies.";
-    }
-    const ul = document.createElement("ul");
-    for (const [text, href] of items) {
-        const li = document.createElement("li");
-        const a = document.createElement("a");
-        a.setAttribute("href", href);
-        a.append(text);
-        li.append(a);
-        ul.append(li);
-    }
-    return ul;
-}
 function createCodeSizeSection(codeSizeUnmodified) {
     const ul = document.createElement("ul");
     const li1 = document.createElement("li");
@@ -164,6 +149,21 @@ function createCodeSizeSection(codeSizeUnmodified) {
     li2.append(code1, " resolved + (doc-)comment removed + Rustfmt: (not yet implemented)");
     li3.append(code2, " resolved + doc-comment removed + minified: (not yet implemented)");
     ul.append(li1, li2, li3);
+    return ul;
+}
+function createDependenciesSection(items) {
+    if (items.length === 0) {
+        return "No dependencies.";
+    }
+    const ul = document.createElement("ul");
+    for (const [text, href] of items) {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.setAttribute("href", href);
+        a.append(text);
+        li.append(a);
+        ul.append(li);
+    }
     return ul;
 }
 function createCargoAddCommandSection(cargoAddCommand) {
