@@ -1,10 +1,10 @@
 "use strict";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function registerModification(manifestRelPath, manifestHref, license, cargoAddCommand, codeSizeUnmodified, verifiedWith) {
+    if (!window.location.pathname.endsWith("/index.html")) {
+        return;
+    }
     document.addEventListener("DOMContentLoaded", () => {
-        if (!isCrateLevelPage()) {
-            return;
-        }
         const docblock = document.querySelector(".docblock");
         if (docblock === null) {
             return;
@@ -20,18 +20,6 @@ function registerModification(manifestRelPath, manifestHref, license, cargoAddCo
         docblock.prepend(createDependencySection(cargoAddCommand));
         docblock.prepend(createFirstSection(manifestRelPath, manifestHref, license));
     });
-}
-function isCrateLevelPage() {
-    const inBand = document.querySelector(".fqn > .in-band");
-    if (inBand === null) {
-        return false;
-    }
-    for (const child of inBand.childNodes) {
-        if (child.nodeName === "#text") {
-            return child.nodeValue === "Crate";
-        }
-    }
-    return false;
 }
 function downgradeSectionHeaders(docblock) {
     docblock.querySelectorAll(".section-header").forEach((sectionHeader) => {
