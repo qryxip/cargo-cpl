@@ -79,6 +79,20 @@ function downgradeSectionHeaders(docblock) {
     });
 }
 function createVerifiedWithSection(verifiedWith) {
+    const div = document.createElement("div");
+    switch (verifiedWith.length) {
+        case 0: {
+            const strong = document.createElement("strong");
+            strong.append(createWarningMark(), " This library is not verified.");
+            div.append(strong);
+            break;
+        }
+        case 1:
+            div.append(createHeavyCheckMark(), " This library verified with 1 solution.");
+            break;
+        default:
+            div.append(createHeavyCheckMark(), " This library verified with " + verifiedWith.length + " solutions.");
+    }
     const ul = document.createElement("ul");
     for (const [problemURL, blobURL] of verifiedWith) {
         const li = document.createElement("li");
@@ -91,7 +105,23 @@ function createVerifiedWithSection(verifiedWith) {
         li.append(a1, " (", a2, ")");
         ul.append(li);
     }
-    return ul;
+    div.append(ul);
+    return div;
+}
+function createHeavyCheckMark() {
+    return createMark("https://github.githubassets.com/images/icons/emoji/unicode/2714.png", "✔");
+}
+function createWarningMark() {
+    return createMark("https://github.githubassets.com/images/icons/emoji/unicode/26a0.png", "⚠");
+}
+function createMark(src, char) {
+    const mark = document.createElement("img");
+    mark.setAttribute("src", src);
+    mark.setAttribute("alt", char);
+    mark.setAttribute("title", char);
+    mark.setAttribute("width", "20");
+    mark.setAttribute("height", "20");
+    return mark;
 }
 function createCodeSizeSection(codeSizeUnmodified) {
     const ul = document.createElement("ul");

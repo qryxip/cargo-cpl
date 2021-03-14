@@ -10,7 +10,6 @@ use git2::Repository;
 use ignore::Walk;
 use indoc::indoc;
 use itertools::Itertools as _;
-use kuchiki::{traits::TendrilSink as _, ElementData, NodeDataRef, NodeRef};
 use maplit::{btreemap, btreeset};
 use serde::Deserialize;
 use std::{
@@ -485,141 +484,6 @@ fn prepare_doc(
     "#};
 }
 
-fn modify_index_html(html: &str, analysis: &PackageAnalysis<'_>) -> anyhow::Result<String> {
-    let PackageAnalysis {
-        package,
-        krate: _,
-        git_url: _,
-        relative_manifest_path,
-        manifest_path_url,
-        code_sizes,
-        verifications,
-    } = analysis;
-
-    let document = kuchiki::parse_html().one(html);
-
-    let orig_fqn = document
-        .select_first(".fqn")
-        .ok()
-        .with_context(|| "could not parse `index.html`: missing `.fqn`")?;
-
-    let new_fqn = kuchiki::parse_html()
-        .one(format!(
-            indoc! {r#"
-                <html>
-                  <body>
-                    <h1 class="fqn">
-                      <span class="in-band">Package {} v{}</span>
-                    </h1>
-                  </body>
-                </html>
-            "#},
-            package.name,
-            v_htmlescape::escape(&package.version.to_string()),
-        ))
-        .select_first("body > h1")
-        .unwrap();
-
-    let new_div = kuchiki::parse_html()
-        .one(format!(
-            indoc! {r##"
-                <html>
-                  <body>
-                    <div class="docblock">
-                      <p>{}</p>
-                      <ul>
-                        <li>Manifest: <a href="{}"><code>{}</code></a></li>
-                        <li>License: {}</li>
-                      </ul>
-                      {}
-                      <h1 id="verified-with" class="section-header"><a href="#verified-with">Verified with</a></h1>
-                      {}
-                    </div>
-                  </body>
-                </html>
-            "##},
-            match verifications.len() {
-                0 => format!("{} This library is not verified", WARNING),
-                1 => format!("{} This library is verified with 1 solution", HEAVY_CHECK_MARK),
-                n => format!("{} This library is verified with {} solutions", HEAVY_CHECK_MARK, n),
-            },
-            manifest_path_url,
-            v_htmlescape::escape(relative_manifest_path.as_ref()).to_string(),
-            if let Some(license) = &package.license {
-                format!("<code>{}</code>", v_htmlescape::escape(license))
-            } else {
-                "<strong>missing license</strong>".to_owned()
-            },
-            code_sizes
-                .as_ref()
-                .map(|CodeSizes { unmodified }| {
-                    format!(
-                        indoc! {r##"
-                            <h1 id="code-size" class="section-header"><a href="#code-size">Code size</a></h1>
-                            <ul>
-                              <li>unmodified: {}</li>
-                            </ul>
-                        "##},
-                        match unmodified {
-                            Ok(size) => {
-                                let (div, rem) = (size / 1024, size % 1024);
-                                format!(
-                                    "{}.{} KiB + (not yet implemented) KiB",
-                                    div, 10 * rem / 1024,
-                                )
-                            }
-                            Err(err) => format!("<code>{}</code>", v_htmlescape::escape(err)),
-                        },
-                    )
-                })
-                .unwrap_or_default(),
-            if verifications.is_empty() {
-                "<strong>This library is not verified.</strong>".to_owned()
-            } else {
-                let mut ul = "<ul>".to_owned();
-                for (problem_url, gh_blob_url) in *verifications {
-                    ul += "<li>";
-                    ul += &format!(
-                        r#"<a href="{0}">{0}</a>"#,
-                        v_htmlescape::escape(problem_url.as_ref()),
-                    );
-                    ul += " ";
-                    ul += &format!(
-                        r#"(<a href="{}">code</a>)"#,
-                        v_htmlescape::escape(gh_blob_url.as_ref()),
-                    );
-                    ul += "</li>";
-                }
-                ul += "</ul>";
-                ul
-            },
-        ))
-        .select_first("body > div")
-        .unwrap();
-
-    orig_fqn.as_node().insert_before(new_fqn.as_node().clone());
-    orig_fqn.as_node().insert_before(new_div.as_node().clone());
-    orig_fqn.as_node().insert_before(hr());
-    return Ok(document.to_string());
-
-    fn hr() -> NodeRef {
-        return HR.with(|hr| hr.as_node().clone());
-
-        thread_local! {
-            static HR: NodeDataRef<ElementData> = kuchiki::parse_html()
-                .one(indoc! {"
-                    <html>
-                      <body>
-                        <hr>
-                      </body>
-                    </html>
-                "})
-                .select_first("body > hr")
-                .unwrap();
-        }
-    }
-}
-
 #[derive(Debug, Deserialize)]
 struct CargoUdepsOutput {
     unused_deps: BTreeMap<String, CargoUdepsOutputDeps>,
@@ -682,8 +546,8 @@ impl TableOfContents {
                 to_md(children, depth + 1, ret);
             }
         }
+
+        static HEAVY_CHECK_MARK: &str = r#"<img src="https://github.githubassets.com/images/icons/emoji/unicode/2714.png" alt="✔" title="✔" width="20" height="20">"#;
+        static WARNING: &str = r#"<img src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" alt="⚠" title="⚠" width="20" height="20">"#;
     }
 }
-
-static HEAVY_CHECK_MARK: &str = r#"<img src="https://github.githubassets.com/images/icons/emoji/unicode/2714.png" alt="✔" title="✔" width="20" height="20">"#;
-static WARNING: &str = r#"<img src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" alt="⚠" title="⚠" width="20" height="20">"#;
