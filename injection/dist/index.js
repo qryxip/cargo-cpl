@@ -143,10 +143,27 @@ function createDependenciesSection(items) {
 function createCodeSizeSection(codeSizeUnmodified) {
     const ul = document.createElement("ul");
     const li1 = document.createElement("li");
-    li1.append("unmodified: " + codeSizeUnmodified + " KiB + (not yet implemented) KiB");
+    li1.append("unmodified: ");
+    if (typeof codeSizeUnmodified === "number") {
+        const div = Math.floor(codeSizeUnmodified / 1024);
+        const rem = codeSizeUnmodified % 1024;
+        li1.append("" + div + "." + Math.floor(10 * rem / 1024) + " KiB");
+    }
+    else {
+        const code = document.createElement("code");
+        code.append(codeSizeUnmodified);
+        li1.append(code);
+    }
+    li1.append(" + (not yet implemented) KiB");
     const li2 = document.createElement("li");
-    li2.append("");
-    ul.append(li1);
+    const li3 = document.createElement("li");
+    const code1 = document.createElement("code");
+    const code2 = document.createElement("code");
+    code1.append("#[cfg]");
+    code2.append("#[cfg]");
+    li2.append(code1, " resolved + (doc-)comment removed + Rustfmt: (not yet implemented)");
+    li3.append(code2, " resolved + doc-comment removed + minified: (not yet implemented)");
+    ul.append(li1, li2, li3);
     return ul;
 }
 function createCargoAddCommandSection(cargoAddCommand) {

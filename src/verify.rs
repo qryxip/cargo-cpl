@@ -322,13 +322,7 @@ impl PackageAnalysis<'_> {
                 "cargo add {} --git {}",
                 self.package.name, self.git_url,
             )),
-            match &self.code_sizes {
-                Some(CodeSizes { unmodified: Ok(n) }) => {
-                    let (div, rem) = (n / 1024, n % 1024);
-                    format!("\"{}.{}\"", div, 10 * rem / 1024)
-                }
-                _ => "null".to_owned(),
-            },
+            json!(self.code_sizes.as_ref().map(CodeSizes::unmodified)),
             self.dependency_ul
                 .iter()
                 .map(|(s, u)| json!([s, u]))
@@ -355,6 +349,13 @@ impl CodeSizes {
             Err(err) => Self {
                 unmodified: Err(err),
             },
+        }
+    }
+
+    fn unmodified(&self) -> serde_json::Value {
+        match &self.unmodified {
+            Ok(n) => json!(n),
+            Err(e) => json!(e),
         }
     }
 }
