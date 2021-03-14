@@ -12,6 +12,7 @@ use indoc::indoc;
 use itertools::Itertools as _;
 use maplit::{btreemap, btreeset};
 use serde::Deserialize;
+use serde_json::json;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
@@ -272,24 +273,23 @@ impl PackageAnalysis<'_> {
                 "use strict";
 
                 registerModification(
-                    "{}",
-                    "{}",
                     {},
-                    "cargo add {} --git {}",
+                    {},
+                    {},
+                    {},
                     {},
                     [{}],
                 );
 
                 {}</script>
             "##},
-            self.relative_manifest_path,
-            self.manifest_path_url,
-            match &self.package.license {
-                Some(license) => format!("\"{}\"", license),
-                None => "null".to_owned(),
-            },
-            self.package.name,
-            self.git_url,
+            json!(self.relative_manifest_path),
+            json!(&self.manifest_path_url),
+            json!(&self.package.license),
+            json!(format!(
+                "cargo add {} --git {}",
+                self.package.name, self.git_url,
+            )),
             match &self.code_sizes {
                 Some(CodeSizes { unmodified: Ok(n) }) => {
                     let (div, rem) = (n / 1024, n % 1024);
@@ -299,7 +299,7 @@ impl PackageAnalysis<'_> {
             },
             self.verifications
                 .iter()
-                .map(|(u1, u2)| format!("[\"{}\", \"{}\"]", u1, u2))
+                .map(|(u1, u2)| json!([u1, u2]))
                 .join(","),
             include_str!("../injection/dist/index.js").trim_start_matches("\"use strict\";\n"),
         )
