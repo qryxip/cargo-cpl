@@ -21,7 +21,12 @@ enum Opt {
 
 #[derive(Debug, StructOpt)]
 enum OptCpl {
-    Verify {
+    Verify(OptCplVerify),
+}
+
+#[derive(Debug, StructOpt)]
+enum OptCplVerify {
+    GhPages {
         /// Open the docs in a browwer after the operation
         #[structopt(long)]
         open: bool,
@@ -38,7 +43,9 @@ fn main() {
     let result = (|| {
         let cwd = &env::current_dir().with_context(|| "could not get the CWD")?;
         match opt {
-            OptCpl::Verify { open, toolchain } => cargo_cpl::verify(toolchain, *open, cwd, shell),
+            OptCpl::Verify(OptCplVerify::GhPages { open, toolchain }) => {
+                cargo_cpl::verify_for_gh_pages(toolchain, *open, cwd, shell)
+            }
         }
     })();
     if let Err(err) = result {

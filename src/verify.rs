@@ -19,7 +19,7 @@ use std::{
 };
 use url::Url;
 
-pub fn verify(
+pub fn verify_for_gh_pages(
     nightly_toolchain: &str,
     open: bool,
     cwd: &Path,

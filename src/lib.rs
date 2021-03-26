@@ -5,4 +5,4 @@ mod shell;
 mod verify;
 mod workspace;
 
-pub use crate::{shell::Shell, verify::verify};
+pub use crate::{shell::Shell, verify::verify_for_gh_pages};
